@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-native-kit"
+version = "0.1.0"
+description = "Bootstrap AI-Native Engineering setup (Claude Code agents, hooks, slash commands, CLAUDE.md) into any project with one command."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "dhwang0803", email = "dhwang0803@gmail.com" }]
+keywords = ["claude-code", "ai-native", "scaffold", "agents", "tdd", "clean-architecture"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = []  # zero runtime deps — stdlib only (tomllib on 3.11+)
+
+[project.urls]
+Homepage = "https://github.com/dhwang0803/AI_Native_Kit"
+
+[project.scripts]
+ai-native-kit = "ai_native_kit.cli:main"
+aink = "ai_native_kit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_native_kit"]
+# Non-Python files under the package (the asset templates) must ship too.
+artifacts = ["src/ai_native_kit/assets/**"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

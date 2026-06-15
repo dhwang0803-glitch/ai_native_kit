@@ -1,0 +1,28 @@
+# AI_Native_Kit project configuration.
+# Drop this file (named `ai-native-kit.toml`) at your project root and re-run
+# `ai-native-kit init`. Any key you omit falls back to the built-in default.
+# These values are substituted into every {{VAR}} placeholder in the assets.
+
+[project]
+name = "{{PROJECT_NAME}}"
+
+[git]
+base_branch = "{{BASE_BRANCH}}"            # protected release branch
+integration_branch = "{{INTEGRATION_BRANCH}}"   # PR base / feature integration
+
+[stack]
+languages = ["python", "javascript"]       # ecosystems in use
+
+[stack.python]
+min_version = "{{PYTHON_MIN}}"
+test = "{{PY_TEST}}"
+lint = "{{PY_LINT}}"
+line_length = {{PY_LINE_LENGTH}}
+
+[stack.javascript]
+test = "{{JS_TEST}}"
+lint = "{{JS_LINT}}"
+
+[architecture]
+preset = "{{ARCH_PRESET}}"                  # "clean" (CA monorepo) | "frontend" (CA layered, single deploy)
+# override per-run with: ai-native-kit init --preset frontend
