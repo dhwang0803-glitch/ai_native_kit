@@ -1,11 +1,14 @@
 """Self-diagnostic for an installed AI_Native_Kit harness.
 
 Run after install, or after a Claude Code version update, to confirm the harness
-is intact and surface known version quirks.
+is intact and surface known version quirks.  The ``--drift`` flag adds a second
+pass that detects staleness between docs/context wiki pages and the actual
+codebase structure.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -109,7 +112,128 @@ def _check_cc_version() -> list[Check]:
         return [Check(WARN, "Claude Code", f"could not run `claude --version`: {exc}")]
 
 
-def run(project: Path) -> tuple[list[Check], int]:
+def _top_level_dirs(project: Path) -> set[str]:
+    """Return names of top-level directories (excluding hidden/generated)."""
+    skip = {".git", ".github", ".githooks", ".claude", "node_modules",
+            "__pycache__", ".venv", "venv", ".mypy_cache", ".ruff_cache",
+            ".pytest_cache", "out", "dist", "build", ".next"}
+    return {
+        p.name for p in project.iterdir()
+        if p.is_dir() and p.name not in skip and not p.name.startswith(".")
+    }
+
+
+def _extract_map_dirs(map_path: Path) -> set[str]:
+    """Extract directory names from a MAP.md code-fence tree diagram."""
+    if not map_path.is_file():
+        return set()
+    text = map_path.read_text(encoding="utf-8", errors="ignore")
+    in_fence = False
+    dirs: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            continue
+        m = re.search(r"(?:├──|└──|│\s+├──|│\s+└──|\s+)\s*(\w[\w.-]*)/", stripped)
+        if m:
+            dirs.add(m.group(1))
+    return dirs
+
+
+def _extract_claude_sections(claude_path: Path) -> set[str]:
+    """Extract H2/H3 section headings from CLAUDE.md."""
+    if not claude_path.is_file():
+        return set()
+    text = claude_path.read_text(encoding="utf-8", errors="ignore")
+    return {
+        m.group(1).strip()
+        for m in re.finditer(r"^#{2,3}\s+(.+)$", text, re.MULTILINE)
+    }
+
+
+def _check_map_drift(project: Path) -> list[Check]:
+    """Compare MAP.md's directory listing against the actual filesystem."""
+    map_path = project / "docs" / "context" / "MAP.md"
+    if not map_path.is_file():
+        return [Check(WARN, "MAP.md drift", "MAP.md not found - skip drift check")]
+    map_dirs = _extract_map_dirs(map_path)
+    if not map_dirs:
+        return [Check(WARN, "MAP.md drift", "no directory tree found in MAP.md code fence")]
+    actual = _top_level_dirs(project)
+    undocumented = actual - map_dirs
+    stale = map_dirs - actual
+    if not undocumented and not stale:
+        return [Check(OK, "MAP.md drift", f"{len(map_dirs)} dirs match filesystem")]
+    checks: list[Check] = []
+    if undocumented:
+        checks.append(Check(
+            WARN, "MAP.md drift",
+            f"dirs exist but not in MAP.md: {', '.join(sorted(undocumented))}",
+        ))
+    if stale:
+        checks.append(Check(
+            WARN, "MAP.md drift",
+            f"dirs in MAP.md but missing on disk: {', '.join(sorted(stale))}",
+        ))
+    return checks
+
+
+def _check_spec_drift(project: Path) -> list[Check]:
+    """Check if docs/specs/ covers the modules that exist on disk."""
+    specs_dir = project / "docs" / "specs"
+    if not specs_dir.is_dir():
+        return []
+    spec_names = {
+        p.stem for p in specs_dir.iterdir()
+        if p.is_file() and p.suffix == ".md"
+        and p.stem not in {"README", "SPEC_TEMPLATE"}
+    }
+    modules_dir = project / "modules"
+    if not modules_dir.is_dir():
+        return []
+    module_names = {p.name for p in modules_dir.iterdir() if p.is_dir() and not p.name.startswith("_")}
+    unspecced = module_names - spec_names
+    orphan_specs = spec_names - module_names
+    if not unspecced and not orphan_specs:
+        return [Check(OK, "spec drift", f"{len(spec_names)} specs match modules/")]
+    checks: list[Check] = []
+    if unspecced:
+        checks.append(Check(
+            WARN, "spec drift",
+            f"modules without spec: {', '.join(sorted(unspecced))}",
+        ))
+    if orphan_specs:
+        checks.append(Check(
+            WARN, "spec drift",
+            f"specs without module dir: {', '.join(sorted(orphan_specs))}",
+        ))
+    return checks
+
+
+def _check_claude_staleness(project: Path) -> list[Check]:
+    """Detect CLAUDE.md referencing paths that don't exist."""
+    claude = project / "CLAUDE.md"
+    if not claude.is_file():
+        return []
+    text = claude.read_text(encoding="utf-8", errors="ignore")
+    referenced_paths: list[str] = []
+    for m in re.finditer(r"`((?:src|modules|packages|services|database|infra)/[^`]+)`", text):
+        referenced_paths.append(m.group(1))
+    if not referenced_paths:
+        return []
+    missing = [p for p in referenced_paths if not (project / p.rstrip("/")).exists()]
+    if not missing:
+        return [Check(OK, "CLAUDE.md paths", f"{len(referenced_paths)} referenced paths all exist")]
+    return [Check(
+        WARN, "CLAUDE.md paths",
+        f"{len(missing)} path(s) in CLAUDE.md not found on disk: {', '.join(missing[:5])}",
+    )]
+
+
+def run(project: Path, *, drift: bool = False) -> tuple[list[Check], int]:
     """Run all checks. Returns (checks, exit_code). exit_code != 0 if any FAIL."""
     checks: list[Check] = []
     checks += _check_assets(project)
@@ -117,5 +241,9 @@ def run(project: Path) -> tuple[list[Check], int]:
     checks += _check_hook_file(project)
     checks += _check_gitignore(project)
     checks += _check_cc_version()
+    if drift:
+        checks += _check_map_drift(project)
+        checks += _check_spec_drift(project)
+        checks += _check_claude_staleness(project)
     exit_code = 1 if any(c.level == FAIL for c in checks) else 0
     return checks, exit_code

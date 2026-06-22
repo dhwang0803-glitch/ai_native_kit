@@ -70,7 +70,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     print(f"target: {project_dir}")
     print("-" * 60)
 
-    checks, exit_code = doctor_mod.run(project_dir)
+    checks, exit_code = doctor_mod.run(project_dir, drift=args.drift)
     symbol = {doctor_mod.OK: "[ OK ]", doctor_mod.WARN: "[WARN]", doctor_mod.FAIL: "[FAIL]"}
     for c in checks:
         print(f"  {symbol[c.level]} {c.label}: {c.detail}")
@@ -137,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_doctor = sub.add_parser("doctor", help="diagnose an installed harness (run after a CC update)")
     p_doctor.add_argument("path", nargs="?", default=".", help="target project dir (default: cwd)")
+    p_doctor.add_argument("--drift", action="store_true", help="detect staleness between docs and codebase")
     p_doctor.set_defaults(func=_cmd_doctor)
 
     p_list = sub.add_parser("list", help="list bundled assets")
