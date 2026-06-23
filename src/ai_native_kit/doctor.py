@@ -90,6 +90,18 @@ def _check_hook_file(project: Path) -> list[Check]:
     return [Check(OK, "post-checkout hook", "present, LF, shebang OK")]
 
 
+def _check_precommit_hook(project: Path) -> list[Check]:
+    hook = project / ".githooks" / "pre-commit"
+    if not hook.is_file():
+        return [Check(WARN, "pre-commit hook", "missing - verification loop disabled (run `ai-native-kit init --force`)")]
+    raw = hook.read_bytes()
+    if b"\r\n" in raw:
+        return [Check(FAIL, "pre-commit hook", "has CRLF line endings - bash will fail; reinstall with --force")]
+    if not raw.startswith(b"#!"):
+        return [Check(WARN, "pre-commit hook", "missing shebang")]
+    return [Check(OK, "pre-commit hook", "present, LF, shebang OK - verification loop active")]
+
+
 def _check_gitignore(project: Path) -> list[Check]:
     gi = project / ".gitignore"
     if not gi.is_file():
@@ -239,6 +251,7 @@ def run(project: Path, *, drift: bool = False) -> tuple[list[Check], int]:
     checks += _check_assets(project)
     checks += _check_git_hook(project)
     checks += _check_hook_file(project)
+    checks += _check_precommit_hook(project)
     checks += _check_gitignore(project)
     checks += _check_cc_version()
     if drift:

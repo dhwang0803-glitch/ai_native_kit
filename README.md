@@ -189,10 +189,12 @@ $ ai-native-kit doctor --drift
 │   └── CLAUDE_DEFAULT.md       # 브랜치별 CLAUDE.md 기본 템플릿
 ├── _module_templates/
 │   └── README.md                  # 모듈 공개 API(Public API) README 템플릿
-├── .claude/commands/          # 재사용 슬래시 커맨드 5종
+├── .claude/commands/          # 재사용 슬래시 커맨드 7종
 │   ├── spec-design.md            (PRD → 아키텍처 → 모듈 분해 → spec → 스캐폴딩)
 │   ├── pr-report.md               (커밋 → 보안점검 → 위키 감사 → PR 자동화)
 │   ├── pr-3axis-review.md         (Clean Architecture/SSOT/크로스모듈 3축 리뷰)
+│   ├── cross-verify.md            (교차 모델 검증 — Codex MCP로 독립 리뷰)
+│   ├── session-retro.md           (세션 회고 — 계획 vs 실제, 하네스 개선)
 │   ├── release-sync.md           (충돌 없는 release 동기화)
 │   └── adr.md                     (새 ADR 생성 + 인덱스 갱신)
 ├── docs/
@@ -200,13 +202,59 @@ $ ai-native-kit doctor --drift
 │   │   ├── MAP.md                 (프로젝트 구조 지도)
 │   │   ├── architecture.md        (레이어/데이터 흐름/경계)
 │   │   ├── decisions.md           (ADR 인덱스 + 결정 메모)
+│   │   ├── cross-verify-guide.md  (교차 모델 검증 + 세션 훅 설정 가이드)
 │   │   └── adr/ADR-0000-template.md
 │   └── specs/                 # 원본 — Layer 1 (모듈 설계 SSOT)
 │       ├── README.md / SPEC_TEMPLATE.md
 │       └── plan/PLAN_TEMPLATE.md
-├── .githooks/post-checkout    # 새 브랜치 체크아웃 시 자동 스캐폴딩
+├── .githooks/
+│   ├── post-checkout              (새 브랜치 체크아웃 시 자동 스캐폴딩)
+│   └── pre-commit                 (커밋 전 보안 점검 + 린트 — 검증 루프 강제)
 └── CLAUDE.md                  # 스키마 — Layer 3 (프로젝트 지침 골격)
 ```
+
+### 교차 모델 검증 파이프라인 (opt-in)
+
+같은 모델이 만든 것을 같은 모델이 검증하면 **자기 편향(self-bias)** 이 발생한다.
+AI_Native_Kit는 Codex를 통한 교차 검증 파이프라인을 제공한다.
+
+```
+Claude Code 산출물 (plan/spec/code)
+    ↓  /cross-verify
+Codex 독립 검증 (CLI 직접 실행 → MCP 폴백 → 수동)
+    ↓
+사실 확인 + 불일치(Disagreement) 추출 → 사람이 최종 판단
+    ↓
+/session-retro → 하네스 개선
+```
+
+| 커맨드 | 역할 |
+|--------|------|
+| `/cross-verify [target]` | Claude 산출물을 Codex가 독립 검증. target: `plan`/`spec`/`code`/`diff`/`pr` |
+| `/session-retro` | 세션 회고 — 계획 vs 실제 비교 + 패턴 분석 + 하네스 개선 제안 |
+
+#### 검증 실행 방식 (3단계 우선순위)
+
+| 우선순위 | 방법 | 특징 |
+|---------|------|------|
+| **1순위** | CLI 직접 실행 (`codex review --base main`) | Codex가 파일 시스템에 직접 접근 — 컨텍스트 손실 없음, 오탐 없음 |
+| **2순위** | MCP 도구 호출 | Claude가 diff를 수집해 전달 — 컨텍스트 제한 있음 |
+| **3순위** | 수동 모드 | 프롬프트 파일 저장 → 외부에서 실행 |
+
+**설정**: Codex CLI (`npm install -g @openai/codex`) 설치 권장.
+상세 가이드: 설치 후 `docs/context/cross-verify-guide.md` 참조.
+
+### 검증 훅 (Evaluation Loop)
+
+하네스의 규칙은 문서가 아니라 **훅으로 강제**한다:
+
+| 훅 | 동작 |
+|----|------|
+| `.githooks/pre-commit` | 보안 점검(하드코딩/`.env` 누출) + 린트. 실패 시 커밋 차단 |
+| `.githooks/post-checkout` | 새 브랜치 생성 시 에이전트·폴더 자동 스캐폴딩 |
+| Claude Code 세션 훅 (선택) | 세션 시작 시 CLAUDE.md 핵심 규칙 강제 주입 + 교차 검증 리마인더 |
+
+세션 훅 설정은 `docs/context/cross-verify-guide.md`의 "세션 훅" 섹션 참조.
 
 ### Spec 기반 설계 흐름 (PRD → 모듈 SSOT → 구현)
 
