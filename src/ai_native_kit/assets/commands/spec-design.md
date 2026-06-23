@@ -33,6 +33,8 @@ PRD를 입력받아 Clean Architecture + 모노레포로 설계하고, 기능별
 확정된 각 모듈에 대해 `docs/specs/SPEC_TEMPLATE.md`를 기반으로 `docs/specs/<module>.md` 작성:
 
 - 공유 스키마 import 목록 / 계층별 클래스(entities·VO·services·ports → use_cases → adapters) / 환경변수 / 의존성 그래프 / 목표 디렉토리 / 공개 API
+- **클래스 관계 다이어그램 필수**: 클래스 간 상속/구현/합성/의존 관계를 텍스트 기반으로 기술. 이 다이어그램이 구현의 청사진이다.
+- **적용 디자인 패턴 명시**: Factory, Strategy, Facade 등 적용할 패턴과 적용 근거를 표로 기록. 패턴이 불필요하면 "해당 없음" 명시.
 - PRD로 확정 가능한 부분만 채우고, 미정은 `TODO`로 남긴다 (환각 금지).
 - 모듈이 많으면 한 번에 다 쓰지 말고 **레이어/핵심 모듈부터** 순차 작성하며 확인받는다.
 

@@ -13,6 +13,56 @@ Test Writer Agent가 작성한 테스트를 통과하는 최소한의 코드를 
 2. **최소 구현**: 테스트를 통과하는 가장 단순한 코드를 작성한다
 3. **의존성 방향 준수**: `packages/ ← modules/ ← services/` 방향만 허용
 4. **레이어 규칙 준수**: 각 모듈 README.md 및 루트 CLAUDE.md의 import 규칙을 따른다
+5. **클래스 기반 설계**: 도메인 엔티티, VO, 서비스, Port, UseCase, Adapter는 **반드시 클래스로 구현**한다. 순수 유틸리티 함수만 예외.
+6. **SOLID 준수**: 단일 책임, 개방-폐쇄(if/elif 체인 대신 다형성), 의존성 역전(Port ABC 경유)
+
+---
+
+## 코드 설계 품질 규칙 (위반 시 리뷰에서 Major)
+
+### 금지 패턴
+
+```python
+# ❌ 함수 기반 도메인 설계 — 금지
+def process_order(order_data: dict) -> dict:
+    if order_data["type"] == "standard": ...
+    elif order_data["type"] == "express": ...
+    return {"status": "done"}
+
+# ✅ 클래스 기반 도메인 설계 — 필수
+class Order(Entity):
+    def process(self) -> OrderResult: ...
+
+class OrderProcessingService:
+    def execute(self, order: Order) -> OrderResult: ...
+```
+
+```python
+# ❌ if/elif 체인으로 타입 분기 — OCP 위반
+def calculate_price(product_type: str, base: int) -> int:
+    if product_type == "book": return base * 0.9
+    elif product_type == "electronics": return base * 1.1
+    elif product_type == "food": return base * 0.95
+    # 새 타입 추가마다 여기를 수정해야 함
+
+# ✅ Strategy 패턴으로 분기 — OCP 준수
+class PricingStrategy(ABC):
+    @abstractmethod
+    def calculate(self, base: int) -> int: ...
+
+class BookPricing(PricingStrategy):
+    def calculate(self, base: int) -> int: return int(base * 0.9)
+```
+
+### 복잡도 제한
+
+| 규칙 | 기준 |
+|------|------|
+| 시간 복잡도 | O(N^2) 이상 금지 (N이 사용자/DB 데이터) |
+| 중첩 루프 | 3단 이상 금지 |
+| 조건문 깊이 | if 3단 이상 중첩 금지 → Early return, Guard clause |
+| 메서드 길이 | 50줄 초과 시 분리 |
+| 매개변수 수 | 5개 초과 시 VO/DTO로 묶기 |
 
 ---
 
@@ -154,10 +204,23 @@ ORM 모델은 도메인 경계를 **절대 넘지 않는다**. Repository 내부
 
 ## 구현 완료 후 자가 점검
 
-- [ ] 하드코딩된 API 키, IP, 비밀번호 없음
+### 아키텍처
 - [ ] 의존성 방향 규칙 위반 없음 (`domain/` → 프레임워크 import 없음)
 - [ ] ORM 모델이 도메인 레이어 밖으로 노출되지 않음
+
+### 설계 품질
+- [ ] 도메인/유스케이스가 클래스로 구현됨 (함수 기반 금지)
+- [ ] if/elif 3단 이상 체인 없음 (패턴 적용 또는 다형성)
+- [ ] O(N^2) 이상 알고리즘 없음 (N이 사용자 데이터인 경우)
+- [ ] 메서드 50줄 / 클래스 300줄 초과 없음
+- [ ] 매개변수 5개 초과 없음
+- [ ] spec에 명시된 디자인 패턴이 코드에 반영됨
+
+### 성능/보안
 - [ ] 루프 안에 DB 쿼리 없음 (N+1 없음)
 - [ ] 외부 API 호출마다 try-except + 타임아웃 설정
-- [ ] 모든 함수에 타입 힌트 명시
+- [ ] 하드코딩된 API 키, IP, 비밀번호 없음
+
+### 코드 품질
+- [ ] 모든 함수/메서드에 타입 힌트 명시
 - [ ] Lint 통과 (`{{PY_LINT}}` / `{{JS_LINT}}`)
