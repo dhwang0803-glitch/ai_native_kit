@@ -8,6 +8,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-23
+
 ### Added
 - `/pr-report` 자동 트리거 — PR 생성 후 `/session-retro` 자동 실행 + `/cross-verify` 실행 여부 제안
   - 세션 회고: PR 생성 직후 자동 (별도 질문 없이)
@@ -52,6 +54,7 @@
 
 ---
 
-[Unreleased]: https://github.com/dhwang0803-glitch/ai_native_kit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dhwang0803-glitch/ai_native_kit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dhwang0803-glitch/ai_native_kit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dhwang0803-glitch/ai_native_kit/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/dhwang0803-glitch/ai_native_kit/releases/tag/v0.0.1
