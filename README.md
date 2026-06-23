@@ -216,14 +216,14 @@ $ ai-native-kit doctor --drift
 ### 교차 모델 검증 파이프라인 (opt-in)
 
 같은 모델이 만든 것을 같은 모델이 검증하면 **자기 편향(self-bias)** 이 발생한다.
-AI_Native_Kit는 Codex MCP를 통한 교차 검증 파이프라인을 제공한다.
+AI_Native_Kit는 Codex를 통한 교차 검증 파이프라인을 제공한다.
 
 ```
 Claude Code 산출물 (plan/spec/code)
     ↓  /cross-verify
-Codex MCP 독립 검증
+Codex 독립 검증 (CLI 직접 실행 → MCP 폴백 → 수동)
     ↓
-불일치(Disagreement) 추출 → 사람이 최종 판단
+사실 확인 + 불일치(Disagreement) 추출 → 사람이 최종 판단
     ↓
 /session-retro → 하네스 개선
 ```
@@ -233,11 +233,16 @@ Codex MCP 독립 검증
 | `/cross-verify [target]` | Claude 산출물을 Codex가 독립 검증. target: `plan`/`spec`/`code`/`diff`/`pr` |
 | `/session-retro` | 세션 회고 — 계획 vs 실제 비교 + 패턴 분석 + 하네스 개선 제안 |
 
-**설정**: Codex MCP 서버를 `.claude/settings.json`에 등록해야 한다.
-상세 가이드: 설치 후 `docs/context/cross-verify-guide.md` 참조.
+#### 검증 실행 방식 (3단계 우선순위)
 
-Codex MCP가 없어도 `/cross-verify`는 사용 가능하다 — 수동 모드로 전환되어
-검증 프롬프트를 파일로 저장하고, 사용자가 외부에서 검증 결과를 붙여넣는다.
+| 우선순위 | 방법 | 특징 |
+|---------|------|------|
+| **1순위** | CLI 직접 실행 (`codex review --base main`) | Codex가 파일 시스템에 직접 접근 — 컨텍스트 손실 없음, 오탐 없음 |
+| **2순위** | MCP 도구 호출 | Claude가 diff를 수집해 전달 — 컨텍스트 제한 있음 |
+| **3순위** | 수동 모드 | 프롬프트 파일 저장 → 외부에서 실행 |
+
+**설정**: Codex CLI (`npm install -g @openai/codex`) 설치 권장.
+상세 가이드: 설치 후 `docs/context/cross-verify-guide.md` 참조.
 
 ### 검증 훅 (Evaluation Loop)
 

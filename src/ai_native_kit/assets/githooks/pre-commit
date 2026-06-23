@@ -44,8 +44,8 @@ if [ -n "$GETENV_HITS" ]; then
     echo "  → 표준 포트(5432, 8080 등)와 localhost는 허용됩니다."
 fi
 
-# .env 파일이 스테이징에 포함됐는지
-ENV_FILES=$(echo "$STAGED_FILES" | grep -E '(^|/)\.env$|\.pem$|\.key$|credentials\.json$' || true)
+# .env 파일이 스테이징에 포함됐는지 (.env, .env.local, .env.production 등 포함, .env.example 제외)
+ENV_FILES=$(echo "$STAGED_FILES" | grep -E '(^|/)(\.env(\..*)?|.*\.pem|.*\.key|credentials\.json)$' | grep -v '\.env\.example' || true)
 if [ -n "$ENV_FILES" ]; then
     echo ""
     echo "  [FAIL] 비밀 파일이 커밋에 포함됨:"
@@ -61,20 +61,24 @@ fi
 
 # ─── 2. 린트 ────────────────────────────────────────────────────────────────
 # Python 파일 린트
+# ai-native-kit.toml의 stack.python.lint 설정을 우선 사용하고, 미설정 시 ruff 폴백
 PY_FILES=$(echo "$STAGED_FILES" | grep '\.py$' || true)
 if [ -n "$PY_FILES" ]; then
-    if command -v ruff >/dev/null 2>&1; then
-        echo "[pre-commit] Python 린트 (ruff)..."
-        if ! echo "$PY_FILES" | xargs ruff check --no-fix 2>/dev/null; then
-            echo "  [FAIL] ruff check 실패 — 커밋 전 수정 필요"
+    PY_LINT_CMD="{{PY_LINT}}"
+    PY_LINT_BIN="${PY_LINT_CMD%% *}"
+
+    if [ -n "$PY_LINT_BIN" ] && [ "$PY_LINT_BIN" != "{{PY_LINT}}" ] && command -v "$PY_LINT_BIN" >/dev/null 2>&1; then
+        echo "[pre-commit] Python 린트 ($PY_LINT_CMD)..."
+        if ! echo "$PY_FILES" | xargs $PY_LINT_CMD 2>/dev/null; then
+            echo "  [FAIL] $PY_LINT_CMD 실패"
             ERRORS=$((ERRORS + 1))
         else
             echo "  [OK] Python 린트 통과"
         fi
-    elif command -v {{PY_LINT}} >/dev/null 2>&1; then
-        echo "[pre-commit] Python 린트 ({{PY_LINT}})..."
-        if ! echo "$PY_FILES" | xargs {{PY_LINT}} 2>/dev/null; then
-            echo "  [FAIL] {{PY_LINT}} 실패"
+    elif command -v ruff >/dev/null 2>&1; then
+        echo "[pre-commit] Python 린트 (ruff)..."
+        if ! echo "$PY_FILES" | xargs ruff check --no-fix 2>/dev/null; then
+            echo "  [FAIL] ruff check 실패 — 커밋 전 수정 필요"
             ERRORS=$((ERRORS + 1))
         else
             echo "  [OK] Python 린트 통과"
