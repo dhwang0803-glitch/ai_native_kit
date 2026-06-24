@@ -75,7 +75,8 @@ find . -path "*/tests/*" -name "test_*<module>*"        # 대응 테스트
 - [ ] `application/`에서 구체 Adapter 직접 import 여부
 - [ ] ORM 모델이 도메인 경계를 넘어가는지
 - [ ] 공유 타입이 공유 스키마 패키지에서 import되는지 (중복 정의 금지)
-- **판정**: 의존성 방향 위반 → Critical, SSOT 중복 정의 → Major
+- [ ] sub-agent(Explore 등)가 보고한 클래스명/시그니처가 실제 코드와 일치하는지 (탐색 결과 기반 코드에서 특히 검증)
+- **판정**: 의존성 방향 위반 → Critical, SSOT 중복 정의 → Major, 탐색 결과 불일치 → Major
 
 ### 8. Readability
 - [ ] 기존 컨벤션과 충돌하는 패턴, 타입 힌트 누락

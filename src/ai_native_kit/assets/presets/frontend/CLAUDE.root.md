@@ -111,11 +111,13 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
 
 `/cross-verify`로 Codex(외부 모델)의 독립 검증을 실행할 수 있다. Codex MCP 설정이 필요하며, 가이드는 `docs/context/cross-verify-guide.md`를 참조.
 
-| 시점 | 명령 |
-|------|------|
-| 설계 완료 후 | `/cross-verify spec` |
-| 구현 1차 완료 후 | `/cross-verify code` |
-| PR 생성 전 | `/cross-verify pr` |
+| 시점 | 명령 | 자동화 |
+|------|------|--------|
+| 설계 완료 후 | `/cross-verify spec` | `ExitPlanMode` PostToolUse 훅이 리마인더 자동 출력 |
+| 구현 1차 완료 후 | `/cross-verify code` | 수동 |
+| PR 생성 전 | `/cross-verify pr` | `/pr-report`에서 자동 제안 |
+
+> 계획 확정 시 `ExitPlanMode` 훅이 자동으로 교차검증 리마인더를 출력한다 (`.claude/settings.json`).
 
 ---
 
@@ -126,11 +128,21 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
 | `.githooks/pre-commit` | `git commit` | 보안 점검 + 린트 자동 실행. 실패 시 커밋 차단 |
 | `.githooks/post-checkout` | 새 브랜치 생성 | 에이전트 템플릿 + 폴더 스캐폴딩 자동 생성 |
 
-세션 훅 설정은 `docs/context/cross-verify-guide.md` 참조. 문서가 아니라 훅으로 규칙을 강제한다.
+### 세션 훅 (`.claude/settings.json`)
+
+| 이벤트 | 동작 |
+|--------|------|
+| `UserPromptSubmit` | 세션 컨텍스트 로드 (아키텍처·보안 규칙 + 교차 검증 리마인더) |
+| `PostToolUse` (Bash\|PowerShell, `git commit` 포함) | 세션 회고 리마인더 출력 |
+| `PostToolUse` (ExitPlanMode) | 계획 교차검증 리마인더 출력 |
+
+> 훅은 백업 리마인더다. 실제 자동화는 아래의 "자동 스킬 호출 규칙"이 담당한다.
 
 ---
 
-## 슬래시 커맨드 (`.claude/commands/`)
+## 슬래시 커맨드 (스킬)
+
+`.claude/commands/`에 위치. Claude Code가 Skill 도구로 호출한다.
 
 | 커맨드 | 용도 |
 |--------|------|
@@ -141,6 +153,40 @@ LLM은 같은 세션에서 자기 산출물을 평가하면 **자기 편향(self
 | `/session-retro` | 세션 회고 — 계획 vs 실제 비교, 패턴 분석, 하네스 개선 제안 |
 | `/release-sync` | `{{INTEGRATION_BRANCH}}` → `release` 동기화 |
 | `/adr` | 새 ADR 생성 + 인덱스 갱신 (`docs` 브랜치) |
+
+---
+
+## 자동 스킬 호출 규칙 (MANDATORY)
+
+아래 트리거 조건이 충족되면 Claude는 **사용자 확인 없이** 해당 스킬을 Skill 도구로 자동 실행한다. "리마인더만 출력"이 아니라 **실제 스킬을 invoke**하는 것이 핵심이다. 훅은 백업 리마인더일 뿐, 진짜 자동화는 이 규칙이다.
+
+### 트리거 → 스킬 매핑
+
+| 트리거 (사용자 의도) | 자동 실행 스킬 | 체인 |
+|---------------------|--------------|------|
+| "PR 만들어줘", "PR 생성", "PR 올려줘" 등 PR 생성 요청 | `/pr-report` | → `/session-retro` → `/cross-verify pr` 제안 |
+| "리뷰해줘", "PR 리뷰", PR 번호 언급 + 리뷰 | `/pr-3axis-review {PR번호}` | 단독 |
+| "설계해줘", PRD 제시 + 구조 설계 | `/spec-design` | 단독 |
+| "릴리즈", "release 동기화" | `/release-sync` | 단독 |
+| "ADR 작성", 아키텍처 결정 기록 | `/adr {제목}` | 단독 |
+| "교차 검증", "cross-verify" | `/cross-verify` | 단독 |
+| "회고", "세션 회고", "retro" | `/session-retro` | 단독 |
+
+### 체인 실행 규칙
+
+`/pr-report`는 다음 체인을 포함한다 (pr-report.md Step 8~9에 명시됨):
+
+1. **PR 생성 완료** → `/session-retro` 자동 실행 (Step 8)
+2. **세션 회고 완료** → `/cross-verify pr` 실행 여부를 사용자에게 제안 (Step 9)
+   - 코드 파일 변경 포함 → "실행 권장"
+   - 문서만 변경 → "건너뛰기 기본"
+
+### 매칭 규칙
+
+- 사용자가 한국어/영어 어느 쪽으로 요청하든 의도를 파악하여 매칭한다
+- 부분 매칭도 허용: "이거 커밋하고 PR까지" → `/pr-report` 트리거
+- 명시적으로 `/커맨드명`을 타이핑하면 해당 스킬을 그대로 실행한다
+- **수동 PR 생성 금지**: 사용자가 PR을 요청하면 `gh pr create`를 직접 쓰지 말고 반드시 `/pr-report`를 통해 생성한다
 
 ---
 

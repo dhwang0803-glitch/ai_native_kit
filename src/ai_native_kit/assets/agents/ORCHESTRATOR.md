@@ -24,6 +24,13 @@
 7. 결과 판단
    - 모든 테스트 PASS → Refactor Agent 호출
    - FAIL 존재 → Developer Agent 재호출 → Tester Agent 재실행 (최대 3회 반복)
+7-b. 크로스 모듈 일관성 검증 (병렬 sub-agent 사용 시 필수)
+   병렬 sub-agent가 여러 모듈을 동시에 구현한 경우, Refactor 전에 일관성 점검:
+   a. Port ABC 시그니처와 Adapter 구현의 메서드명·파라미터 일치 여부 Grep 확인
+   b. 공유 스키마 사용 일관성 (같은 enum/VO를 다른 이름으로 import하지 않았는지)
+   c. 모듈 간 의존성 방향 위반 여부 재확인
+   d. sub-agent(Explore 등)가 보고한 클래스명이 실제 코드와 일치하는지 Grep 검증
+   불일치 발견 시 → Developer Agent 재호출
 8. Review Agent 호출 (방어적 코드 리뷰)
    - Critical 발견 → Developer 재호출 → Tester → Refactor → Review 재실행 (최대 2회)
    - Major 발견 → Developer 또는 Refactor에 위임 후 Review 재실행
@@ -67,6 +74,7 @@
 - 작업 대상 파일 경로
 - 이전 단계 결과 (Developer 호출 시 테스트 결과, Review 호출 시 변경 파일 목록)
 - 의존하는 다른 모듈의 Port 인터페이스 (있는 경우)
+- 해당 모듈의 Port ABC 전체 시그니처 (adapter 구현 시 필수 — 메서드명·파라미터·반환 타입)
 
 ---
 
@@ -100,6 +108,7 @@ grep -rn "from.*adapters\.\|repositories import" modules/*/application/
 - [ ] 전체 테스트 PASS 또는 잔여 FAIL 사유 문서화
 - [ ] 의존성 방향 규칙 위반 0건
 - [ ] Review Agent Critical 0건
-- [ ] Lint 통과 (`{{PY_LINT}}` / `{{JS_LINT}}`)
+- [ ] Lint 통과 (`{{PY_LINT}}` / `{{JS_LINT}}`) — sub-agent별이 아닌 전체 프로젝트 대상
+- [ ] 병렬 구현 시 크로스 모듈 일관성 검증 완료
 - [ ] Security Audit PASS (커밋 직전)
 - [ ] Impact Assessment 완료
