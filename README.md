@@ -232,10 +232,11 @@ Codex 독립 검증 (CLI 직접 실행 → MCP 폴백 → 수동)
 
 | 커맨드 | 역할 | 트리거 |
 |--------|------|--------|
-| `/cross-verify [target]` | Claude 산출물을 Codex가 독립 검증 | `/pr-report` 후 자동 제안 (코드 변경 시 권장) |
-| `/session-retro` | 세션 회고 — 계획 vs 실제 비교 + 하네스 개선 | `/pr-report` 후 **자동 실행** |
+| `/cross-verify [target]` | Claude 산출물을 Codex가 독립 검증 | `/pr-report` 내 자동 제안 (코드 변경 시 권장) |
+| `/session-retro` | 세션 회고 — 계획 vs 실제 비교 + 하네스 개선 | `/pr-report` 내 **자동 실행** |
 
-> `/pr-report`로 PR을 생성하면 세션 회고가 자동 실행되고, 이어서 교차 검증 여부를 묻는다.
+> `/pr-report`를 실행하면 PR 생성 **전에** 세션 회고와 교차 검증을 먼저 수행하고,
+> 그 결과를 PR 본문에 포함한 채 PR을 생성한다.
 > 수동으로도 언제든 `/cross-verify`, `/session-retro`를 개별 실행할 수 있다.
 
 #### 검증 실행 방식 (3단계 우선순위)
@@ -249,15 +250,17 @@ Codex 독립 검증 (CLI 직접 실행 → MCP 폴백 → 수동)
 **설정**: Codex CLI (`npm install -g @openai/codex`) 설치 권장.
 상세 가이드: 설치 후 `docs/context/cross-verify-guide.md` 참조.
 
-### 검증 훅 (Evaluation Loop)
+### 자동 스킬 호출
 
-하네스의 규칙은 문서가 아니라 **훅으로 강제**한다:
+사용자가 "PR 만들어줘", "리뷰해줘" 등 자연어로 요청하면 CLAUDE.md의 **자동 스킬 호출 규칙**에 따라 대응하는 슬래시 커맨드(`/pr-report`, `/pr-3axis-review` 등)가 자동으로 실행된다. `gh pr create`를 직접 쓰는 것이 아니라, 보안 점검 → 회고 → 검증 → PR 생성의 전체 체인이 돌아간다.
+
+### 검증 훅 (Evaluation Loop)
 
 | 훅 | 동작 |
 |----|------|
 | `.githooks/pre-commit` | 보안 점검(하드코딩/`.env` 누출) + 린트. 실패 시 커밋 차단 |
 | `.githooks/post-checkout` | 새 브랜치 생성 시 에이전트·폴더 자동 스캐폴딩 |
-| Claude Code 세션 훅 (선택) | 세션 시작 시 CLAUDE.md 핵심 규칙 강제 주입 + 교차 검증 리마인더 |
+| Claude Code 세션 훅 (선택) | 교차 검증 리마인더 + 세션 회고 리마인더 (백업 — 실제 자동화는 자동 스킬 호출이 담당) |
 
 세션 훅 설정은 `docs/context/cross-verify-guide.md`의 "세션 훅" 섹션 참조.
 
@@ -277,29 +280,31 @@ PRD ──/spec-design──▶ 아키텍처 설계(Clean Architecture+모노레
 
 ### PR 자동화 — `/pr-report` 전체 흐름
 
-`/pr-report` 하나로 커밋부터 회고까지 전 과정이 자동으로 이어진다:
+`/pr-report` 하나로 보안 점검부터 PR 생성까지 전 과정이 자동으로 이어진다.
+회고와 교차 검증을 PR 생성 **전에** 수행하여, 결과를 PR 본문에 처음부터 포함한다:
 
 ```
 /pr-report
     ↓
 Step 1~2: 보안 점검 + Decision Audit
     ↓
-Step 3~7: 커밋 → push → PR 생성
+Step 3: 세션 회고 자동 실행 (/session-retro)
     ↓
-Step 8: 세션 회고 자동 실행 (/session-retro)
-    ↓
-Step 9: "교차 검증 실행할까요?" 자동 제안
+Step 4: "교차 검증 실행할까요?" 제안
          코드 변경 → 실행 권장
          문서만 변경 → 건너뛰기 기본
+         P1/P2 지적 → 즉시 수정
+    ↓
+Step 5~7: 커밋 → push → PR 생성 (회고+검증 결과 포함)
 ```
 
 | 단계 | 동작 | 자동/수동 |
 |------|------|----------|
 | 보안 점검 | 하드코딩 자격증명, `os.getenv()` 인프라 노출, `.gitignore` 누락 | 자동 |
 | Decision Audit | 결정 나열 → Q1(타인 영향)·Q2(위키 커버) 판정 | 자동 |
-| 사후 영향 평가 | 업/다운스트림, DB 스키마, API 변경 영향 | 자동 |
-| 세션 회고 | 계획 vs 실제, Keep/Drop/Try 패턴 분석 | **자동** (PR 생성 직후) |
+| 세션 회고 | 계획 vs 실제, Keep/Drop/Try 패턴 분석 | **자동** (PR 생성 전) |
 | 교차 검증 | Codex 독립 리뷰 (`codex review --base main`) | **자동 제안** (사용자 선택) |
+| PR 생성 | 변경사항 + 보안 + 회고 + 검증 결과를 본문에 포함 | 자동 |
 
 ---
 
